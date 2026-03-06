@@ -14,6 +14,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, IterableDataset
 from torch.utils.data import get_worker_info
 from tqdm import tqdm
+import imageio.v3 as iio
 
 
 def exists(var) -> bool:
@@ -188,37 +189,38 @@ class VideoDataset(Dataset):
         start_frame: int = None,
         frame_skip: int = 1
     ) -> Tensor:
-        cap = cv.VideoCapture(video_path)
-        total_frames = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+        video = iio.imread(video_path, plugin="pyav", )
+        # cap = cv.VideoCapture(video_path)
+        total_frames = video.shape[0] # int(cap.get(cv.CAP_PROP_FRAME_COUNT))
         frame_skip = randint(1, 4)
         num_frames = num_frames * frame_skip
 
         start_frame = start_frame if exists(start_frame) else randint(0, max(0, total_frames - num_frames))
-        cap.set(cv.CAP_PROP_POS_FRAMES, start_frame)
-        frames = []
-        for _ in range(num_frames):
-            ret, frame = cap.read()
-            if ret:
-                # Frame was successfully read, parse it
-                frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-                frame = torch.from_numpy(frame)
-                frames.append(frame)
-            else:
-                # Reach the end of video, deal with padding and return
-                if self.padding == "none":
-                    pass
-                elif self.padding == "repeat":
-                    frames.extend([frames[-1]] * (num_frames - len(frames)))
-                elif self.padding == "zero":
-                    frames.extend([torch.zeros_like(frames[-1])] * (num_frames - len(frames)))
-                elif self.padding == "random":
-                    frames.extend([torch.rand_like(frames[-1])] * (num_frames - len(frames)))
-                else:
-                    raise ValueError(f"Invalid padding type: {self.padding}")
-                break
-        cap.release()
-
-        video = torch.stack(frames[::frame_skip]) / 255.0
+        # cap.set(cv.CAP_PROP_POS_FRAMES, start_frame)
+        # frames = []
+        # for _ in range(num_frames):
+        #     ret, frame = cap.read()
+        #     if ret:
+        #         # Frame was successfully read, parse it
+        #         frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+        #         frame = torch.from_numpy(frame)
+        #         frames.append(frame)
+        #     else:
+        #         # Reach the end of video, deal with padding and return
+        #         if self.padding == "none":
+        #             pass
+        #         elif self.padding == "repeat":
+        #             frames.extend([frames[-1]] * (num_frames - len(frames)))
+        #         elif self.padding == "zero":
+        #             frames.extend([torch.zeros_like(frames[-1])] * (num_frames - len(frames)))
+        #         elif self.padding == "random":
+        #             frames.extend([torch.rand_like(frames[-1])] * (num_frames - len(frames)))
+        #         else:
+        #             raise ValueError(f"Invalid padding type: {self.padding}")
+        #         break
+        # cap.release()
+        # video = torch.stack(frames[::frame_skip]) / 255.0
+        video = torch.stack([torch.from_numpy(frame) for frame in video[start_frame::frame_skip]]) / 255.0
 
         target_ratio = 640 / 480
         if video.shape[2] / video.shape[1] > target_ratio:
